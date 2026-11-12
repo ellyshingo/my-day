@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мой день</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Мой день">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#EEF1F8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12141C" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Unbounded:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"></script>
+<style>
+:root{
+  --bg:#EEF1F8; --surface:#FFFFFF; --ink:#1B1F2E; --muted:#6B7186; --line:#D6DBE8;
+  --work:#4C5FD5; --personal:#E2557A; --accent:#4C5FD5; --danger:#D9534F;
+  --sheet-shadow:0 -12px 40px rgba(27,31,46,.18);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#12141C; --surface:#1C1F2A; --ink:#ECEEF5; --muted:#9097AD; --line:#2C3142;
+    --work:#7D8CF0; --personal:#F0789A; --accent:#7D8CF0; --sheet-shadow:0 -12px 40px rgba(0,0,0,.5);
+    color-scheme:dark; }
+}
+*{box-sizing:border-box;margin:0}
+html{height:100%;-webkit-text-size-adjust:100%}
+body{min-height:100%;background:var(--bg);color:var(--ink);
+  font:16px/1.45 Manrope,-apple-system,"Segoe UI",Roboto,sans-serif;
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+  -webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.wrap{max-width:640px;margin:0 auto;padding:12px 18px 120px}
+.hidden{display:none!important}
+
+/* Header */
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-top:8px}
+.month{color:var(--muted);font-weight:600;font-size:14px}
+.dayname{font-family:Unbounded,Manrope,sans-serif;font-weight:600;font-size:28px;line-height:1.15;letter-spacing:-.01em}
+.icons{display:flex;gap:6px}
+.iconbtn{position:relative;width:42px;height:42px;border-radius:14px;background:var(--surface);display:grid;place-items:center;font-size:19px;border:1px solid var(--line)}
+.badge{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--personal);color:#fff;font-size:11px;font-weight:700;display:grid;place-items:center}
+
+/* Week strip */
+.week{display:flex;align-items:center;gap:4px;margin:18px -6px 0}
+.week .nav{width:28px;height:52px;color:var(--muted);font-size:18px;flex:none}
+.days{flex:1;display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.day{height:58px;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.day small{font-size:11px;color:var(--muted);font-weight:600}
+.day b{font-size:17px;font-weight:700}
+.day i{width:5px;height:5px;border-radius:50%;background:transparent;margin-top:2px}
+.day.has i{background:var(--muted)}
+.day.today b{color:var(--accent)}
+.day.sel{background:var(--ink);color:var(--bg)}
+.day.sel small{color:inherit;opacity:.7}
+.day.sel i{background:var(--bg)}
+.todaylink{display:block;margin:8px auto 0;font-size:13px;font-weight:600;color:var(--accent)}
+
+/* Filter */
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:3px;margin-top:14px}
+.seg button{flex:1;height:36px;border-radius:11px;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink)}
+@media (prefers-color-scheme: dark){.seg button[aria-pressed="true"]{background:#2A2E3C}}
+
+/* All-day */
+.allday{margin-top:18px;display:flex;flex-direction:column;gap:8px}
+.chip{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
+.chip .em{font-size:18px}
+.chip .t{flex:1;font-weight:600}
+.allday-label{font-size:13px;color:var(--muted);font-weight:600}
+
+/* Timeline */
+.timeline{margin-top:20px;position:relative}
+.row{display:grid;grid-template-columns:48px 54px 1fr 40px;gap:0 10px;align-items:stretch;position:relative}
+.time{font-size:13px;color:var(--muted);font-weight:600;display:flex;flex-direction:column;justify-content:space-between;text-align:right;padding:6px 0}
+.rail{position:relative;display:flex;justify-content:center}
+.rail::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:0;border-left:2px dashed var(--line);transform:translateX(-1px)}
+.row:first-child .rail::before{top:24px}
+.row:last-child .rail::before{bottom:calc(100% - 24px)}
+.pill{position:relative;z-index:1;width:48px;border-radius:24px;display:grid;place-items:start center;padding-top:12px;font-size:21px;color:#fff;box-shadow:0 4px 12px -4px var(--c)}
+.body{padding:8px 0 18px;min-width:0;text-align:left}
+.body .range{font-size:13px;color:var(--muted)}
+.body .title{font-weight:700;font-size:16px;line-height:1.3;word-wrap:break-word}
+.body .meta{display:flex;gap:6px;margin-top:4px;flex-wrap:wrap}
+.tag{font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:8px}
+.tag.work{color:var(--work);background:color-mix(in srgb,var(--work) 14%,transparent)}
+.tag.personal{color:var(--personal);background:color-mix(in srgb,var(--personal) 14%,transparent)}
+.tag.plain{color:var(--muted);background:color-mix(in srgb,var(--muted) 12%,transparent)}
+.check{width:30px;height:30px;border-radius:50%;border:2px solid var(--line);margin-top:10px;display:grid;place-items:center;color:#fff;font-size:15px;font-weight:700}
+.check.on{background:var(--c,var(--accent));border-color:var(--c,var(--accent))}
+.done .title{text-decoration:line-through;color:var(--muted)}
+.done .pill{opacity:.45;box-shadow:none}
+.gap{grid-template-columns:48px 54px 1fr}
+.gap .body{padding:10px 0;color:var(--muted);font-size:13.5px}
+.now .body{color:var(--accent);font-weight:700;font-size:13px;padding:4px 0}
+.now .rail::after{content:"";position:absolute;z-index:1;top:50%;left:50%;width:12px;height:12px;border-radius:50%;background:var(--accent);transform:translate(-50%,-50%)}
+.empty{margin-top:40px;text-align:center;color:var(--muted)}
+.empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:4px}
+
+/* FAB */
+.fab{position:fixed;right:max(20px,calc(50% - 300px));bottom:calc(24px + env(safe-area-inset-bottom,0px));width:60px;height:60px;border-radius:20px;background:var(--accent);color:#fff;font-size:30px;line-height:1;box-shadow:0 10px 24px -8px var(--accent);z-index:5}
+
+/* Sheets */
+.scrim{position:fixed;inset:0;background:rgba(10,12,20,.42);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:100%;max-width:640px;max-height:92vh;overflow:auto;background:var(--surface);border-radius:24px 24px 0 0;box-shadow:var(--sheet-shadow);padding:10px 20px calc(24px + env(safe-area-inset-bottom,0px));animation:up .22s ease-out}
+@media (prefers-reduced-motion: reduce){.sheet{animation:none}}
+@keyframes up{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+.grab{width:40px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 12px}
+.sheet h2{font-family:Unbounded,Manrope,sans-serif;font-size:20px;font-weight:600;margin-bottom:14px}
+.field{margin-top:14px}
+.field>label,.lbl{display:block;font-size:13px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.inp{width:100%;height:46px;border-radius:12px;border:1px solid var(--line);background:var(--bg);padding:0 12px;font-size:16px}
+textarea.inp{height:80px;padding:10px 12px;resize:vertical}
+.titlein{font-size:19px;font-weight:700;height:52px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.emojis{display:flex;flex-wrap:wrap;gap:6px}
+.emojis button{width:40px;height:40px;border-radius:12px;font-size:20px;background:var(--bg)}
+.emojis button[aria-pressed="true"]{outline:2px solid var(--ink)}
+.swatches{display:flex;gap:10px;flex-wrap:wrap}
+.swatches button{width:32px;height:32px;border-radius:50%}
+.swatches button[aria-pressed="true"]{box-shadow:0 0 0 3px var(--surface),0 0 0 5px var(--ink)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{height:36px;padding:0 13px;border-radius:11px;background:var(--bg);font-weight:600;font-size:14px;border:1px solid var(--line)}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;height:46px}
+.toggle input{width:22px;height:22px;accent-color:var(--accent)}
+.actions{display:flex;gap:10px;margin-top:22px}
+.btn{flex:1;height:50px;border-radius:14px;font-weight:700;font-size:16px;background:var(--bg);border:1px solid var(--line)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.danger{color:var(--danger)}
+.note{font-size:14px;color:var(--muted);margin-top:8px}
+.notebox{background:var(--bg);border-radius:14px;padding:12px 14px;font-size:14px;margin-top:10px}
+.list{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+
+/* Auth */
+.auth{max-width:380px;margin:12vh auto 0;padding:0 22px}
+.auth .logo{width:64px;height:64px;border-radius:18px}
+.auth h1{font-family:Unbounded,Manrope,sans-serif;font-weight:600;font-size:30px;margin:18px 0 6px}
+.err{color:var(--danger);font-size:14px;margin-top:10px;min-height:20px}
+.toast{position:fixed;left:50%;bottom:calc(100px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:12px;font-size:14px;font-weight:600;z-index:40;max-width:90vw}
+/* v2: quick add */
+.qa-top{display:flex;gap:10px;align-items:center}
+.qa-icon{flex:none;width:56px;height:56px;border-radius:18px;font-size:26px;display:grid;place-items:center;color:#fff;background:var(--c)}
+.qa-title{flex:1;min-width:0;border:0;background:transparent;font-size:21px;font-weight:700;height:56px;padding:0;outline:none}
+.qa-title::placeholder{color:var(--muted);font-weight:600}
+.picker{background:var(--bg);border-radius:16px;padding:12px;margin-top:12px}
+.picker .emojis button{background:var(--surface)}
+.picker .swatches{margin-top:12px}
+.qa-row{display:flex;gap:6px;overflow-x:auto;margin:14px -20px 0;padding:0 20px 2px;scrollbar-width:none}
+.qa-row::-webkit-scrollbar{display:none}
+.qa-row button{flex:none}
+.timebox{display:flex;align-items:center;gap:10px;margin-top:14px;background:var(--bg);border-radius:16px;padding:10px 12px}
+.timebox input[type=time]{border:0;background:var(--surface);border-radius:10px;height:44px;padding:0 10px;font-size:18px;font-weight:700;min-width:110px}
+.timebox .to{color:var(--muted);font-weight:600}
+.timebox .end{font-size:18px;font-weight:700}
+.datepick{position:relative}
+.datepick input{position:absolute;inset:0;opacity:0;width:100%}
+.more{text-align:left;display:flex;align-items:center;justify-content:space-between;width:100%;height:46px;margin-top:14px;font-weight:700;color:var(--muted);border-top:1px solid var(--line)}
+.gap .body{cursor:pointer}
+.gap .add{color:var(--accent);font-weight:700}
+.dragging{opacity:.92;z-index:10;position:relative}
+.dragging .pill{transform:scale(1.06);transition:transform .15s}
+.pill{touch-action:none}
+.dragtime{color:var(--accent)!important}
+.quickin{display:flex;gap:8px;margin-top:6px}
+.quickin .inp{flex:1}
+.quickin .btn{flex:none;width:52px;height:46px;padding:0}
+.emptyadd{margin-top:14px;height:46px;padding:0 18px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-weight:700;color:var(--accent)}
+</style>
+</head>
+<body>
+
+<script>
+// Данные вашего проекта Supabase
+const SUPABASE_URL = 'https://wqbpxqeveunnuhugdsgn.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_MzhGHH2bvD8IEmm2FWEHqw_i11Vmx-N';
+const VAPID_PUBLIC = 'BJi5KROeuBQyjQSuEMbfJ_KePL4_fehJOJlJR65wl03n7kNNDa1khR_0b5LqO0PKxUHAOb9xjCjnRLnBg10cxFc';
+</script>
+
+<div id="setup" class="auth hidden">
+  <img class="logo" src="icon-192.png" alt="">
+  <h1>Подключение</h1>
+  <p class="note">Вставьте адрес проекта и ключ из Supabase. Это нужно сделать один раз на этом устройстве.</p>
+  <div class="field"><label for="cUrl">Project URL</label><input id="cUrl" class="inp" placeholder="https://xxxx.supabase.co" autocapitalize="off"></div>
+  <div class="field"><label for="cKey">Publishable или anon key</label><input id="cKey" class="inp" autocapitalize="off"></div>
+  <div class="err" id="cErr"></div>
+  <div class="actions"><button class="btn primary" id="cSave">Подключить</button></div>
+</div>
+
+<div id="auth" class="auth hidden">
+  <img class="logo" src="icon-192.png" alt="">
+  <h1>Мой день</h1>
+  <p class="note">Войдите, чтобы задачи были одинаковыми на телефоне и компьютере.</p>
+  <div class="field"><label for="email">Почта</label><input id="email" class="inp" type="email" autocomplete="email" autocapitalize="off"></div>
+  <div class="field"><label for="pass">Пароль</label><input id="pass" class="inp" type="password" autocomplete="current-password"></div>
+  <div class="err" id="authErr"></div>
+  <div class="actions"><button class="btn primary" id="signIn">Войти</button></div>
+  <div class="actions" style="margin-top:10px"><button class="btn" id="signUp">Создать аккаунт</button></div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <div class="month" id="month"></div>
+        <div class="dayname" id="dayname"></div>
+      </div>
+      <div class="icons">
+        <button class="iconbtn" id="inboxBtn" aria-label="Входящие">📥<span class="badge hidden" id="inboxCount"></span></button>
+        <button class="iconbtn" id="settingsBtn" aria-label="Настройки">⚙️</button>
+      </div>
+    </div>
+
+    <div class="week">
+      <button class="nav" id="prevW" aria-label="Предыдущая неделя">‹</button>
+      <div class="days" id="days"></div>
+      <button class="nav" id="nextW" aria-label="Следующая неделя">›</button>
+    </div>
+    <button class="todaylink hidden" id="todayLink">Вернуться к сегодня</button>
+
+    <div class="seg" role="group" aria-label="Фильтр">
+      <button data-f="all" aria-pressed="true">Все</button>
+      <button data-f="work" aria-pressed="false">Работа</button>
+      <button data-f="personal" aria-pressed="false">Личное</button>
+    </div>
+
+    <div id="allday" class="allday"></div>
+    <div id="timeline" class="timeline"></div>
+  </div>
+  <button class="fab" id="addBtn" aria-label="Новая задача">+</button>
+</div>
+
+<div id="sheetRoot"></div>
+
+<script>
+/* ---------- подключение ---------- */
+const store = {
+  get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+const cleanUrl = (u) => { try { return new URL(String(u).trim()).origin; } catch { return ''; } };
+const placeholder = (s) => !s || s.includes('ВСТАВЬТЕ');
+const cfgUrl = cleanUrl(placeholder(SUPABASE_URL) ? store.get('sb_url') : SUPABASE_URL);
+const cfgKey = (placeholder(SUPABASE_KEY) ? store.get('sb_key') : SUPABASE_KEY).trim();
+const configured = !!(cfgUrl && cfgKey);
+const sb = configured ? window.supabase.createClient(cfgUrl, cfgKey, { auth: { persistSession: true, autoRefreshToken: true } }) : null;
+
+/* ---------- helpers ---------- */
+const $ = (s) => document.querySelector(s);
+const pad = (n) => String(n).padStart(2, '0');
+const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseISO = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parseISO(s); d.setDate(d.getDate() + n); return iso(d); };
+const dowOf = (s) => parseISO(s).getDay();
+const toMin = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const hm = (m) => { m = ((m % 1440) + 1440) % 1440; return pad(Math.floor(m / 60)) + ':' + pad(m % 60); };
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const todayISO = () => iso(new Date());
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const durText = (m) => { const h = Math.floor(m / 60), r = m % 60; return h && r ? `${h} ч ${r} мин` : h ? `${h} ч` : `${r} мин`; };
+const durShort = (m) => m < 60 ? `${m} мин` : m % 60 ? `${(m / 60).toString().replace('.', ',')} ч` : `${m / 60} ч`;
+
+const MONTHS = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const DAYS = ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
+const DAYS_S = ['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const EMOJIS = ['✨','💼','📚','🗣️','🎓','📝','💻','📞','✉️','🗂️','🏃‍♀️','🧘‍♀️','🍳','☕','🛒','🧹','💊','🛏️','🚗','✈️','🎉','🎧','❤️','💅'];
+const COLORS = ['#5B6CF0','#E2557A','#F29D38','#2BA889','#3AA3E0','#9B6BE0','#7A8194','#D9534F'];
+const REPEAT = { none: 'Не повторять', daily: 'Каждый день', weekdays: 'По будням', weekly: 'По дням недели', monthly: 'Каждый месяц' };
+const REMIND = [[null,'Без напоминания'],[0,'В момент начала'],[5,'За 5 минут'],[10,'За 10 минут'],[15,'За 15 минут'],[30,'За 30 минут'],[60,'За 1 час'],[120,'За 2 часа'],[1440,'За 1 день']];
+const DURS = [15, 30, 45, 60, 90, 120];
+
+/* ---------- автоподбор иконки и раздела по названию ---------- */
+const RULES = [
+  [/ielts|айлтс|айелтс|speaking|спикинг|мок|mock|пробник/i, '🗣️', 'work', '#5B6CF0'],
+  [/\bsat\b|\bсат\b|урок|занят|групп|лекци|класс/i, '📚', 'work', '#3AA3E0'],
+  [/эссе|essay|мотивац|рекоменд|portfolio|портфолио|проверить|проверка/i, '📝', 'work', '#9B6BE0'],
+  [/студент|ученик|консульт|куратор|родител|поступлен|выставк|woexpo|универ|вуз|грант/i, '🎓', 'work', '#2BA889'],
+  [/встреч|созвон|митинг|meeting|zoom|зум|планерк|собрани/i, '💻', 'work', '#3AA3E0'],
+  [/почт|email|e-mail|мейл|письм|ответить/i, '✉️', 'work', '#7A8194'],
+  [/отч[её]т|документ|таблиц|трекер|расписан|план\b|планир/i, '🗂️', 'work', '#F29D38'],
+  [/работ|офис|сана/i, '💼', 'work', '#5B6CF0'],
+  [/позвон|звонок|звонить|call/i, '📞', null, '#3AA3E0'],
+  [/обед|ужин|завтрак|поесть|перекус|готовить|еда/i, '🍳', 'personal', '#F29D38'],
+  [/кофе|чай|кофейн/i, '☕', 'personal', '#F29D38'],
+  [/йог|медитац|растяжк|пилатес/i, '🧘‍♀️', 'personal', '#2BA889'],
+  [/спорт|зал|трениров|бег|пробежк|прогул|шаги|фитнес|плаван/i, '🏃‍♀️', 'personal', '#2BA889'],
+  [/магазин|купить|продукт|покупк|заказать/i, '🛒', 'personal', '#9B6BE0'],
+  [/уборк|убрать|стирк|постират|помыть/i, '🧹', 'personal', '#7A8194'],
+  [/врач|таблет|аптек|больниц|стомат|анализ|клиник/i, '💊', 'personal', '#D9534F'],
+  [/спать|сон\b|отбой|лечь/i, '🛏️', 'personal', '#7A8194'],
+  [/такси|машин|ехать|поездк|дорог/i, '🚗', 'personal', '#7A8194'],
+  [/рейс|самол[её]т|аэропорт|перел[её]т/i, '✈️', 'personal', '#3AA3E0'],
+  [/день рожд|праздн|вечеринк|\bдр\b|той\b/i, '🎉', 'personal', '#E2557A'],
+  [/маникюр|ногт|салон|парикмах|бров|ресниц/i, '💅', 'personal', '#E2557A'],
+  [/мам|пап|семь|друз|подруг|свидан|сестр|брат/i, '❤️', 'personal', '#E2557A'],
+  [/музык|подкаст|слушать/i, '🎧', 'personal', '#9B6BE0'],
+  [/читать|книг|учить|курс|английск/i, '📚', 'personal', '#9B6BE0'],
+];
+const suggest = (title) => { for (const r of RULES) if (r[0].test(title)) return { icon: r[1], category: r[2], color: r[3] }; return null; };
+
+/* ---------- state ---------- */
+let user = null, tasks = [], completions = new Set();
+let selected = todayISO(), filter = 'all', dragging = false;
+
+function occursOn(t, d) {
+  if (!t.date) return false;
+  if (t.recurrence === 'none') return t.date === d;
+  if (d < t.date) return false;
+  if (t.recur_until && d > t.recur_until) return false;
+  if ((t.skipped_dates || []).includes(d)) return false;
+  switch (t.recurrence) {
+    case 'daily': return true;
+    case 'weekdays': { const w = dowOf(d); return w >= 1 && w <= 5; }
+    case 'weekly': { const days = t.recur_days?.length ? t.recur_days : [dowOf(t.date)]; return days.includes(dowOf(d)); }
+    case 'monthly': return d.slice(8) === t.date.slice(8);
+  }
+  return false;
+}
+const isDone = (t, d) => t.recurrence === 'none' ? t.done : completions.has(t.id + '|' + d);
+const passFilter = (t) => filter === 'all' || t.category === filter;
+const catLabel = (c) => c === 'work' ? 'Работа' : 'Личное';
+
+/* ---------- data ---------- */
+async function load() {
+  const [{ data: t, error: e1 }, { data: c }] = await Promise.all([
+    sb.from('tasks').select('*').order('start_time', { ascending: true }),
+    sb.from('task_completions').select('task_id,occ_date'),
+  ]);
+  if (e1) { toast('Не удалось загрузить задачи: ' + e1.message); return; }
+  tasks = t || [];
+  completions = new Set((c || []).map((x) => x.task_id + '|' + x.occ_date));
+  if (!dragging) render();
+}
+
+async function toggleDone(t, d) {
+  if (t.recurrence === 'none') {
+    t.done = !t.done; render();
+    const { error } = await sb.from('tasks').update({ done: t.done }).eq('id', t.id);
+    if (error) { t.done = !t.done; render(); toast('Не сохранилось: ' + error.message); }
+  } else {
+    const key = t.id + '|' + d;
+    if (completions.has(key)) { completions.delete(key); render(); await sb.from('task_completions').delete().eq('task_id', t.id).eq('occ_date', d); }
+    else { completions.add(key); render(); await sb.from('task_completions').insert({ task_id: t.id, occ_date: d }); }
+  }
+}
+
+/* ---------- render ---------- */
+function render() {
+  const sd = parseISO(selected);
+  $('#month').textContent = `${sd.getDate()} ${MONTHS[sd.getMonth()]} ${sd.getFullYear()}`;
+  $('#dayname').textContent = selected === todayISO() ? 'Сегодня' : selected === addDays(todayISO(), 1) ? 'Завтра' : DAYS[sd.getDay()];
+  $('#todayLink').classList.toggle('hidden', selected === todayISO());
+
+  const mon = addDays(selected, -((sd.getDay() + 6) % 7));
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(mon, i), dd = parseISO(d);
+    const has = tasks.some((t) => passFilter(t) && occursOn(t, d));
+    const cls = ['day', d === selected && 'sel', d === todayISO() && 'today', has && 'has'].filter(Boolean).join(' ');
+    html += `<button class="${cls}" data-d="${d}" aria-label="${dd.getDate()} ${MONTHS[dd.getMonth()]}"><small>${DAYS_S[dd.getDay()]}</small><b>${dd.getDate()}</b><i></i></button>`;
+  }
+  $('#days').innerHTML = html;
+
+  const inboxN = tasks.filter((t) => !t.date && !t.done).length;
+  $('#inboxCount').textContent = inboxN;
+  $('#inboxCount').classList.toggle('hidden', !inboxN);
+
+  const dayTasks = tasks.filter((t) => passFilter(t) && occursOn(t, selected));
+  const allDay = dayTasks.filter((t) => !t.start_time);
+  const timed = dayTasks.filter((t) => t.start_time).sort((a, b) => toMin(a.start_time) - toMin(b.start_time));
+
+  $('#allday').innerHTML = allDay.length
+    ? `<div class="allday-label">Без времени</div>` + allDay.map((t) => {
+        const done = isDone(t, selected);
+        return `<div class="chip ${done ? 'done' : ''}" style="--c:${esc(t.color)}">
+          <span class="em">${esc(t.icon)}</span>
+          <button class="t title" data-edit="${t.id}" style="text-align:left">${esc(t.title)}</button>
+          <span class="tag ${t.category}">${catLabel(t.category)}</span>
+          <button class="check ${done ? 'on' : ''}" data-done="${t.id}" aria-label="Отметить">${done ? '✓' : ''}</button>
+        </div>`; }).join('')
+    : '';
+
+  if (!timed.length) {
+    $('#timeline').innerHTML = allDay.length ? '' : `<div class="empty"><b>День свободен</b>Запланируйте что-нибудь или просто отдохните.<br><button class="emptyadd" data-addat="${selected === todayISO() ? Math.ceil((nowMin() + 1) / 15) * 15 : 540}">+ Добавить задачу</button></div>`;
+    return;
+  }
+
+  const isToday = selected === todayISO();
+  const nm = nowMin();
+  const nowRow = () => `<div class="row gap now"><div class="time"></div><div class="rail"></div><button class="body" data-addat="${Math.ceil(nm / 5) * 5}">Сейчас ${hm(nm)}</button></div>`;
+  let out = '', prevEnd = null, nowShown = !isToday;
+  for (const t of timed) {
+    const s = toMin(t.start_time), e = s + (t.duration_min || 0);
+    if (!nowShown && nm < s) { out += nowRow(); nowShown = true; }
+    if (prevEnd !== null && s - prevEnd >= 30) {
+      out += `<div class="row gap"><div class="time"></div><div class="rail"></div><button class="body" data-addat="${prevEnd}">Свободно ${durText(s - prevEnd)} · <span class="add">добавить</span></button></div>`;
+    }
+    const done = isDone(t, selected);
+    const h = Math.max(48, Math.min(170, (t.duration_min || 15) * 1.1));
+    const meta = [`<span class="tag ${t.category}">${catLabel(t.category)}</span>`];
+    if (t.recurrence !== 'none') meta.push(`<span class="tag plain">↻ ${REPEAT[t.recurrence]}</span>`);
+    if (t.remind_offset_min !== null && t.remind_offset_min !== undefined) meta.push(`<span class="tag plain">🔔</span>`);
+    out += `<div class="row ${done ? 'done' : ''}" style="--c:${esc(t.color)}" data-row="${t.id}">
+      <div class="time"><span class="ts">${hm(s)}</span>${t.duration_min ? `<span class="te">${hm(e)}</span>` : ''}</div>
+      <div class="rail"><button class="pill" data-edit="${t.id}" data-drag="${t.id}" style="height:${h}px;background:${esc(t.color)}" aria-label="Изменить. Удерживайте, чтобы перенести">${esc(t.icon)}</button></div>
+      <button class="body" data-edit="${t.id}">
+        <div class="range">${hm(s)}${t.duration_min ? '–' + hm(e) + ' · ' + durText(t.duration_min) : ''}</div>
+        <div class="title">${esc(t.title)}</div>
+        <div class="meta">${meta.join('')}</div>
+      </button>
+      <div><button class="check ${done ? 'on' : ''}" data-done="${t.id}" aria-label="Отметить">${done ? '✓' : ''}</button></div>
+    </div>`;
+    prevEnd = Math.max(prevEnd ?? 0, e);
+    if (!nowShown && nm >= s && nm < e) nowShown = true;
+  }
+  if (!nowShown && prevEnd !== null && nm >= prevEnd) out += nowRow();
+  $('#timeline').innerHTML = out;
+}
+
+/* ---------- перетаскивание (удерживать капсулу) ---------- */
+let drag = null, suppressClick = false;
+document.addEventListener('pointerdown', (e) => {
+  const pill = e.target.closest('[data-drag]'); if (!pill) return;
+  const t = tasks.find((x) => x.id === pill.dataset.drag); if (!t) return;
+  const row = pill.closest('.row');
+  drag = { t, row, y0: e.clientY, x0: e.clientX, started: false, delta: 0, start: toMin(t.start_time), id: e.pointerId };
+  drag.timer = setTimeout(() => {
+    if (!drag) return;
+    drag.started = true; dragging = true;
+    row.classList.add('dragging');
+    try { pill.setPointerCapture(drag.id); } catch {}
+    if (navigator.vibrate) navigator.vibrate(15);
+  }, 320);
+});
+document.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const dy = e.clientY - drag.y0, dx = e.clientX - drag.x0;
+  if (!drag.started) { if (Math.abs(dy) > 8 || Math.abs(dx) > 8) { clearTimeout(drag.timer); drag = null; } return; }
+  e.preventDefault();
+  const dur = drag.t.duration_min || 0;
+  const ns = Math.max(0, Math.min(1440 - Math.max(dur, 5), Math.round((drag.start + dy) / 5) * 5));
+  drag.delta = ns - drag.start;
+  drag.row.style.transform = `translateY(${dy}px)`;
+  const ts = drag.row.querySelector('.ts'), te = drag.row.querySelector('.te');
+  ts.textContent = hm(ns); ts.classList.add('dragtime');
+  if (te) { te.textContent = hm(ns + dur); te.classList.add('dragtime'); }
+}, { passive: false });
+async function endDrag() {
+  if (!drag) return;
+  clearTimeout(drag.timer);
+  const d = drag; drag = null;
+  if (!d.started) return;
+  suppressClick = true; setTimeout(() => (suppressClick = false), 400);
+  dragging = false;
+  if (!d.delta) { render(); return; }
+  const ns = d.start + d.delta;
+  d.t.start_time = hm(ns) + ':00';
+  render();
+  const { error } = await sb.from('tasks').update({ start_time: hm(ns) }).eq('id', d.t.id);
+  if (error) { toast('Не сохранилось: ' + error.message); return load(); }
+  toast(d.t.recurrence !== 'none' ? `Перенесено на ${hm(ns)} для всех повторов` : `Перенесено на ${hm(ns)}`);
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
+document.addEventListener('contextmenu', (e) => { if (e.target.closest('[data-drag]')) e.preventDefault(); });
+
+/* ---------- sheets ---------- */
+function openSheet(inner) {
+  $('#sheetRoot').innerHTML = `<div class="scrim" id="scrim"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${inner}</div></div>`;
+  $('#scrim').addEventListener('click', (e) => { if (e.target.id === 'scrim') closeSheet(); });
+}
+const closeSheet = () => { $('#sheetRoot').innerHTML = ''; };
+
+/* ---------- быстрое добавление / редактирование ---------- */
+function editor(task, opts = {}) {
+  const isNew = !task;
+  const defCat = filter !== 'all' ? filter : 'personal';
+  const st = task ? { ...task, recur_days: [...(task.recur_days || [])] } : {
+    title: '', icon: '✨', color: defCat === 'work' ? COLORS[0] : COLORS[1], category: defCat,
+    date: opts.inbox ? null : selected,
+    start_time: opts.inbox ? null : hm(opts.at ?? (selected === todayISO() ? Math.ceil((nowMin() + 1) / 15) * 15 : 540)),
+    duration_min: 30, recurrence: 'none', recur_days: [], recur_until: null, remind_offset_min: 0, notes: '',
+  };
+  let hasTime = !!st.start_time;
+  let manualIcon = !isNew, manualCat = !isNew || filter !== 'all';
+  const showMore = !isNew && (st.recurrence !== 'none' || st.notes || st.remind_offset_min !== 0);
+
+  const dateLabel = () => !st.date ? 'Без даты' : st.date === todayISO() ? 'Сегодня' : st.date === addDays(todayISO(), 1) ? 'Завтра'
+    : `${parseISO(st.date).getDate()} ${MONTHS[parseISO(st.date).getMonth()]}`;
+
+  openSheet(`
+    <div class="qa-top">
+      <button class="qa-icon" id="qIcon" style="--c:${esc(st.color)}" aria-label="Иконка и цвет">${esc(st.icon)}</button>
+      <input class="qa-title" id="qTitle" placeholder="Что нужно сделать?" value="${esc(st.title)}" enterkeyhint="done">
+    </div>
+    <div class="picker hidden" id="qPicker">
+      <div class="emojis" id="fIcon">${EMOJIS.map((e) => `<button data-v="${e}" aria-pressed="${e === st.icon}">${e}</button>`).join('')}</div>
+      <div class="swatches" id="fColor">${COLORS.map((c) => `<button data-v="${c}" style="background:${c}" aria-pressed="${c === st.color}" aria-label="Цвет"></button>`).join('')}</div>
+    </div>
+
+    <div class="qa-row chips" id="qCat">
+      <button data-v="work" aria-pressed="${st.category === 'work'}">💼 Работа</button>
+      <button data-v="personal" aria-pressed="${st.category === 'personal'}">🌿 Личное</button>
+    </div>
+
+    <div class="qa-row chips" id="qDate">
+      <button data-v="today">Сегодня</button>
+      <button data-v="tomorrow">Завтра</button>
+      <span class="datepick"><button data-v="pick" id="qPickBtn">📅 Другой день</button><input type="date" id="qDateIn" value="${st.date || selected}" aria-label="Выбрать дату"></span>
+      <button data-v="none">Без даты</button>
+    </div>
+
+    <div id="qTimeWrap">
+      <div class="timebox">
+        <input type="time" id="qTime" value="${(st.start_time || '09:00').slice(0, 5)}" aria-label="Начало">
+        <span class="to">до</span><span class="end" id="qEnd"></span>
+        <span style="flex:1"></span>
+        <button class="chips" id="qNoTime" style="white-space:nowrap;font-size:13px;font-weight:700;color:var(--muted)">Без времени</button>
+      </div>
+      <div class="qa-row chips" id="qDur">${DURS.map((m) => `<button data-v="${m}">${durShort(m)}</button>`).join('')}<button data-v="custom">Другое</button></div>
+      <input class="inp hidden" type="number" min="5" step="5" id="qDurIn" placeholder="Минут" style="margin-top:8px" value="${st.duration_min}">
+    </div>
+    <button class="chips hidden" id="qAddTime" style="margin-top:14px;font-weight:700;color:var(--accent)">+ Указать время</button>
+
+    <button class="more" id="qMoreBtn" aria-expanded="${showMore}"><span>Повтор, напоминание, заметка</span><span id="qMoreArrow">${showMore ? '▴' : '▾'}</span></button>
+    <div id="qMore" class="${showMore ? '' : 'hidden'}">
+      <div class="field" id="remindField"><label for="fRemind">Напоминание</label>
+        <select class="inp" id="fRemind">${REMIND.map(([v, l]) => `<option value="${v ?? ''}" ${String(st.remind_offset_min ?? '') === String(v ?? '') ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div class="field" id="repeatField"><label for="fRepeat">Повтор</label>
+        <select class="inp" id="fRepeat">${Object.entries(REPEAT).map(([k, v]) => `<option value="${k}" ${k === st.recurrence ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+      <div class="field" id="weekdaysField"><span class="lbl">Дни недели</span>
+        <div class="chips" id="fDays">${[1,2,3,4,5,6,0].map((d) => `<button data-v="${d}" aria-pressed="${st.recur_days.includes(d) || (!st.recur_days.length && st.date && dowOf(st.date) === d)}">${DAYS_S[d]}</button>`).join('')}</div></div>
+      <div class="field" id="untilField"><label for="fUntil">Повторять до (необязательно)</label><input class="inp" type="date" id="fUntil" value="${st.recur_until || ''}"></div>
+      <div class="field"><label for="fNotes">Заметка</label><textarea class="inp" id="fNotes">${esc(st.notes || '')}</textarea></div>
+    </div>
+
+    <div class="err" id="fErr"></div>
+    <div class="actions">
+      ${isNew ? '' : `<button class="btn danger" id="fDel">Удалить</button>`}
+      <button class="btn primary" id="fSave">${isNew ? 'Добавить' : 'Сохранить'}</button>
+    </div>`);
+
+  const setPressed = (wrap, val) => $(wrap).querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === String(val)));
+  function syncDate() {
+    const v = !st.date ? 'none' : st.date === todayISO() ? 'today' : st.date === addDays(todayISO(), 1) ? 'tomorrow' : 'pick';
+    setPressed('#qDate', v);
+    $('#qPickBtn').textContent = v === 'pick' ? '📅 ' + dateLabel() : '📅 Другой день';
+    $('#qTimeWrap').classList.toggle('hidden', !st.date || !hasTime);
+    $('#qAddTime').classList.toggle('hidden', !st.date || hasTime);
+    $('#remindField').classList.toggle('hidden', !st.date || !hasTime);
+    $('#repeatField').classList.toggle('hidden', !st.date);
+    syncRepeat();
+  }
+  function syncDur() {
+    const d = parseInt($('#qDurIn').value || '0', 10) || 0;
+    st.duration_min = d;
+    setPressed('#qDur', DURS.includes(d) ? d : 'custom');
+    $('#qEnd').textContent = hm(toMin($('#qTime').value || '09:00') + d);
+  }
+  function syncRepeat() {
+    const r = $('#fRepeat').value;
+    $('#weekdaysField').classList.toggle('hidden', !st.date || r !== 'weekly');
+    $('#untilField').classList.toggle('hidden', !st.date || r === 'none');
+  }
+  function applyLook() {
+    $('#qIcon').textContent = st.icon; $('#qIcon').style.setProperty('--c', st.color);
+    setPressed('#fIcon', st.icon); setPressed('#fColor', st.color); setPressed('#qCat', st.category);
+  }
+
+  $('#qTitle').addEventListener('input', () => {
+    const s = suggest($('#qTitle').value);
+    if (!s) return;
+    if (!manualIcon) { st.icon = s.icon; st.color = s.color; }
+    if (!manualCat && s.category) st.category = s.category;
+    applyLook();
+  });
+  $('#qTitle').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } });
+  $('#qIcon').onclick = () => $('#qPicker').classList.toggle('hidden');
+  $('#fIcon').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; st.icon = b.dataset.v; manualIcon = true; applyLook(); });
+  $('#fColor').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; st.color = b.dataset.v; manualIcon = true; applyLook(); });
+  $('#qCat').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; st.category = b.dataset.v; manualCat = true; applyLook(); });
+  $('#qDate').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.v === 'today') st.date = todayISO();
+    if (b.dataset.v === 'tomorrow') st.date = addDays(todayISO(), 1);
+    if (b.dataset.v === 'none') st.date = null;
+    if (b.dataset.v === 'pick') { try { $('#qDateIn').showPicker(); } catch { $('#qDateIn').focus(); } return; }
+    syncDate();
+  });
+  $('#qDateIn').addEventListener('click', (e) => { try { e.target.showPicker(); } catch {} });
+  $('#qDateIn').addEventListener('change', (e) => { if (e.target.value) { st.date = e.target.value; syncDate(); } });
+  $('#qTime').addEventListener('input', syncDur);
+  $('#qDur').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.v === 'custom') { $('#qDurIn').classList.remove('hidden'); $('#qDurIn').focus(); setPressed('#qDur', 'custom'); return; }
+    $('#qDurIn').value = b.dataset.v; $('#qDurIn').classList.add('hidden'); syncDur();
+  });
+  $('#qDurIn').addEventListener('input', syncDur);
+  $('#qNoTime').onclick = () => { hasTime = false; syncDate(); };
+  $('#qAddTime').onclick = () => { hasTime = true; syncDate(); syncDur(); };
+  $('#qMoreBtn').onclick = () => {
+    const open = $('#qMore').classList.toggle('hidden') === false;
+    $('#qMoreBtn').setAttribute('aria-expanded', open); $('#qMoreArrow').textContent = open ? '▴' : '▾';
+  };
+  $('#fRepeat').addEventListener('change', syncRepeat);
+  $('#fDays').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') !== 'true'); });
+
+  applyLook(); syncDate(); syncDur();
+  if (!DURS.includes(st.duration_min)) $('#qDurIn').classList.remove('hidden');
+  if (isNew) setTimeout(() => $('#qTitle').focus(), 60);
+
+  async function save() {
+    const title = $('#qTitle').value.trim();
+    if (!title) { $('#fErr').textContent = 'Напишите название задачи.'; $('#qTitle').focus(); return; }
+    const timed = !!st.date && hasTime;
+    const rec = st.date ? $('#fRepeat').value : 'none';
+    const rem = $('#fRemind').value;
+    const row = {
+      title, icon: st.icon, color: st.color, category: st.category,
+      date: st.date, start_time: timed ? $('#qTime').value : null,
+      duration_min: Math.max(0, st.duration_min || 0),
+      recurrence: rec,
+      recur_days: rec === 'weekly' ? [...document.querySelectorAll('#fDays button[aria-pressed="true"]')].map((b) => +b.dataset.v) : [],
+      recur_until: rec !== 'none' && $('#fUntil').value ? $('#fUntil').value : null,
+      remind_offset_min: timed && rem !== '' ? +rem : null,
+      notes: $('#fNotes').value.trim() || null,
+    };
+    $('#fSave').disabled = true;
+    const { error } = isNew ? await sb.from('tasks').insert(row) : await sb.from('tasks').update(row).eq('id', task.id);
+    if (error) { $('#fErr').textContent = 'Не сохранилось: ' + error.message; $('#fSave').disabled = false; return; }
+    closeSheet();
+    if (st.date) selected = st.date;
+    await load();
+    toast(isNew ? (st.date ? 'Задача добавлена' : 'Добавлено во входящие') : 'Изменения сохранены');
+  }
+  $('#fSave').onclick = save;
+
+  $('#fDel')?.addEventListener('click', () => {
+    if (task.recurrence !== 'none') {
+      openSheet(`<h2>Удалить повторяющуюся задачу?</h2>
+        <p class="note">«${esc(task.title)}»</p>
+        <div class="actions"><button class="btn" id="dOne">Только ${parseISO(selected).getDate()} ${MONTHS[parseISO(selected).getMonth()]}</button></div>
+        <div class="actions" style="margin-top:10px"><button class="btn danger" id="dAll">Всю серию</button></div>
+        <div class="actions" style="margin-top:10px"><button class="btn" id="dNo">Отмена</button></div>`);
+      $('#dNo').onclick = closeSheet;
+      $('#dOne').onclick = async () => { await sb.from('tasks').update({ skipped_dates: [...(task.skipped_dates || []), selected] }).eq('id', task.id); closeSheet(); await load(); toast('Удалено на этот день'); };
+      $('#dAll').onclick = async () => { await sb.from('tasks').delete().eq('id', task.id); closeSheet(); await load(); toast('Задача удалена'); };
+    } else {
+      openSheet(`<h2>Удалить задачу?</h2><p class="note">«${esc(task.title)}»</p>
+        <div class="actions"><button class="btn" id="dNo">Отмена</button><button class="btn danger" id="dAll">Удалить</button></div>`);
+      $('#dNo').onclick = closeSheet;
+      $('#dAll').onclick = async () => { await sb.from('tasks').delete().eq('id', task.id); closeSheet(); await load(); toast('Задача удалена'); };
+    }
+  });
+}
+
+/* ---------- входящие ---------- */
+function inboxSheet() {
+  const items = tasks.filter((t) => !t.date && passFilter(t)).sort((a, b) => a.done - b.done);
+  openSheet(`<h2>Входящие</h2>
+    <div class="quickin"><input class="inp" id="iQuick" placeholder="Новое дело без даты…" enterkeyhint="done"><button class="btn primary" id="iAdd" aria-label="Добавить">+</button></div>
+    <p class="note">Нажмите на дело, чтобы назначить ему день и время.</p>
+    <div class="list">${items.length ? items.map((t) => `
+      <div class="chip ${t.done ? 'done' : ''}" style="--c:${esc(t.color)}">
+        <span class="em">${esc(t.icon)}</span>
+        <button class="t title" data-iedit="${t.id}" style="text-align:left">${esc(t.title)}</button>
+        <span class="tag ${t.category}">${catLabel(t.category)}</span>
+        <button class="check ${t.done ? 'on' : ''}" data-idone="${t.id}" aria-label="Отметить">${t.done ? '✓' : ''}</button>
+      </div>`).join('') : `<div class="notebox">Здесь пусто. Сюда удобно скидывать дела, для которых ещё нет времени.</div>`}</div>`);
+  const add = async () => {
+    const title = $('#iQuick').value.trim(); if (!title) return;
+    const s = suggest(title) || {};
+    const category = filter !== 'all' ? filter : (s.category || 'personal');
+    $('#iQuick').value = '';
+    const { error } = await sb.from('tasks').insert({ title, icon: s.icon || '✨', color: s.color || (category === 'work' ? COLORS[0] : COLORS[1]), category, date: null, start_time: null });
+    if (error) return toast('Не сохранилось: ' + error.message);
+    await load(); inboxSheet(); setTimeout(() => $('#iQuick')?.focus(), 50);
+  };
+  $('#iAdd').onclick = add;
+  $('#iQuick').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+  setTimeout(() => $('#iQuick')?.focus(), 60);
+  $('#sheetRoot').querySelector('.list').addEventListener('click', async (e) => {
+    const ed = e.target.closest('[data-iedit]'), dn = e.target.closest('[data-idone]');
+    if (ed) { const t = tasks.find((x) => x.id === ed.dataset.iedit); editor(t); }
+    if (dn) { const t = tasks.find((x) => x.id === dn.dataset.idone); await toggleDone(t, null); inboxSheet(); }
+  });
+}
+
+/* ---------- push ---------- */
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+function b64ToU8(b64) {
+  const p = '='.repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + p).replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+async function pushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported';
+  if (Notification.permission === 'denied') return 'denied';
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg && await reg.pushManager.getSubscription();
+  return sub ? 'on' : 'off';
+}
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { toast('Уведомления не разрешены'); return settingsSheet(); }
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToU8(VAPID_PUBLIC) });
+    const j = sub.toJSON();
+    const { error } = await sb.from('push_subscriptions').upsert(
+      { endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, tz: Intl.DateTimeFormat().resolvedOptions().timeZone },
+      { onConflict: 'endpoint' });
+    if (error) throw error;
+    toast('Уведомления включены на этом устройстве');
+  } catch (e) { toast('Не получилось включить: ' + (e.message || e)); }
+  settingsSheet();
+}
+async function testPush() {
+  const start = hm(nowMin() + 2);
+  const { error } = await sb.from('tasks').insert({ title: 'Проверка уведомлений', icon: '🔔', color: COLORS[6], category: 'personal', date: todayISO(), start_time: start, duration_min: 5, remind_offset_min: 0 });
+  if (error) return toast('Ошибка: ' + error.message);
+  closeSheet(); selected = todayISO(); await load();
+  toast(`Уведомление придёт примерно в ${start}. Потом удалите эту задачу.`);
+}
+async function settingsSheet() {
+  const st = await pushStatus();
+  let pushBlock;
+  if (isIOS && !isStandalone) pushBlock = `<div class="notebox">На iPhone уведомления работают только из приложения на главном экране. Нажмите «Поделиться» внизу Safari → «На экран Домой», откройте «Мой день» с иконки и включите уведомления там.</div>`;
+  else if (st === 'unsupported') pushBlock = `<div class="notebox">Этот браузер не поддерживает push-уведомления.</div>`;
+  else if (st === 'denied') pushBlock = `<div class="notebox">Уведомления запрещены. На iPhone: Настройки → Уведомления → «Мой день» → Допуск уведомлений.</div>`;
+  else if (st === 'on') pushBlock = `<div class="notebox">✅ Уведомления включены на этом устройстве.</div><div class="actions"><button class="btn" id="sTest">Проверить уведомление</button></div>`;
+  else pushBlock = `<div class="actions"><button class="btn primary" id="sPush">Включить уведомления</button></div>`;
+  openSheet(`<h2>Настройки</h2>
+    <span class="lbl">Аккаунт</span><div class="notebox">${esc(user?.email)}</div>
+    <div class="field"><span class="lbl">Напоминания</span>${pushBlock}</div>
+    <p class="note">Включите уведомления отдельно на каждом устройстве, где хотите их получать.</p>
+    <div class="notebox">Подсказки: нажмите на «Свободно…» в ленте, чтобы добавить задачу в это окно. Удерживайте цветную капсулу и тяните вверх или вниз, чтобы перенести задачу. Смахните влево или вправо, чтобы сменить день.</div>
+    <div class="actions"><button class="btn danger" id="sOut">Выйти</button><button class="btn" id="sClose">Готово</button></div>`);
+  $('#sPush')?.addEventListener('click', enablePush);
+  $('#sTest')?.addEventListener('click', testPush);
+  $('#sClose').onclick = closeSheet;
+  $('#sOut').onclick = async () => { await sb.auth.signOut(); closeSheet(); };
+}
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg) {
+  document.querySelector('.toast')?.remove();
+  const d = document.createElement('div'); d.className = 'toast'; d.textContent = msg; document.body.appendChild(d);
+  clearTimeout(toastT); toastT = setTimeout(() => d.remove(), 3200);
+}
+
+/* ---------- events ---------- */
+$('#days').addEventListener('click', (e) => { const b = e.target.closest('[data-d]'); if (b) { selected = b.dataset.d; render(); } });
+$('#prevW').onclick = () => { selected = addDays(selected, -7); render(); };
+$('#nextW').onclick = () => { selected = addDays(selected, 7); render(); };
+$('#todayLink').onclick = () => { selected = todayISO(); render(); };
+document.querySelector('.seg').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  filter = b.dataset.f;
+  document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', x === b));
+  render();
+});
+document.querySelector('.wrap').addEventListener('click', (e) => {
+  if (suppressClick) { e.preventDefault(); return; }
+  const ed = e.target.closest('[data-edit]'), dn = e.target.closest('[data-done]'), at = e.target.closest('[data-addat]');
+  if (dn) { const t = tasks.find((x) => x.id === dn.dataset.done); if (t) toggleDone(t, selected); return; }
+  if (at) { editor(null, { at: +at.dataset.addat }); return; }
+  if (ed) { const t = tasks.find((x) => x.id === ed.dataset.edit); if (t) editor(t); }
+});
+$('#addBtn').onclick = () => editor(null);
+$('#inboxBtn').onclick = inboxSheet;
+$('#settingsBtn').onclick = settingsSheet;
+
+let tx = null;
+document.querySelector('.wrap').addEventListener('touchstart', (e) => { tx = e.target.closest('[data-drag]') ? null : e.touches[0].clientX; }, { passive: true });
+document.querySelector('.wrap').addEventListener('touchend', (e) => {
+  if (tx === null || dragging) { tx = null; return; }
+  const dx = e.changedTouches[0].clientX - tx; tx = null;
+  if (Math.abs(dx) > 70) { selected = addDays(selected, dx < 0 ? 1 : -1); render(); }
+});
+
+/* ---------- auth ---------- */
+async function doAuth(kind) {
+  const email = $('#email').value.trim(), password = $('#pass').value;
+  $('#authErr').textContent = '';
+  if (!email || password.length < 6) { $('#authErr').textContent = 'Введите почту и пароль не короче 6 символов.'; return; }
+  const { data, error } = kind === 'in' ? await sb.auth.signInWithPassword({ email, password }) : await sb.auth.signUp({ email, password });
+  if (error) { $('#authErr').textContent = error.message === 'Invalid login credentials' ? 'Неверная почта или пароль.' : error.message; return; }
+  if (kind === 'up' && !data.session) $('#authErr').textContent = 'Аккаунт создан. Подтвердите почту по ссылке из письма и войдите.';
+}
+$('#signIn').onclick = () => doAuth('in');
+$('#signUp').onclick = () => doAuth('up');
+$('#pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doAuth('in'); });
+$('#cSave').onclick = () => {
+  const u = cleanUrl($('#cUrl').value), k = $('#cKey').value.trim();
+  if (!u || !/supabase\.co$/.test(new URL(u).hostname)) { $('#cErr').textContent = 'Адрес должен выглядеть как https://xxxx.supabase.co'; return; }
+  if (!k) { $('#cErr').textContent = 'Вставьте ключ.'; return; }
+  store.set('sb_url', u); store.set('sb_key', k); location.reload();
+};
+
+function show(which) { ['setup', 'auth', 'app'].forEach((id) => $('#' + id).classList.toggle('hidden', id !== which)); }
+
+(async function init() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (!configured) return show('setup');
+  const { data: { session } } = await sb.auth.getSession();
+  user = session?.user || null;
+  if (user) { show('app'); load(); } else show('auth');
+  sb.auth.onAuthStateChange((_e, s) => {
+    const was = user?.id; user = s?.user || null;
+    if (user && user.id !== was) { show('app'); load(); }
+    if (!user) { tasks = []; show('auth'); }
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && user) load(); });
+  setInterval(() => { if (user && !document.hidden && !dragging) load(); }, 60000);
+})();
+</script>
+</body>
+</html>
